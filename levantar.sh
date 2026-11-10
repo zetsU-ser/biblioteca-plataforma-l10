@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # levantar.sh - un comando que levanta todo el sistema de la biblioteca: Kafka, RabbitMQ, Postgres y los
-# siete servicios, todo en contenedores. Supone que los ocho repositorios estan clonados uno al lado del
+# siete servicios, todo en contenedores, con los consumer groups de biblioteca-eventos y el panel en vivo (L10). Supone que los ocho repositorios estan clonados uno al lado del
 # otro, sin el sufijo -l10:
 #   carpeta/
 #     biblioteca-plataforma/   <- aqui va este script
@@ -56,16 +56,19 @@ comprobar() {
 }
 comprobar 200 http://localhost:4200/
 comprobar 401 http://localhost:8080/v1/libros
+comprobar 401 http://localhost:8080/v1/panel/en-vivo
 comprobar 401 http://localhost:3000/panel
 comprobar 200 http://localhost:3001/libros
 comprobar 200 http://localhost:3002/prestamos
 comprobar 200 http://localhost:3010/salud
+comprobar 200 http://localhost:3010/panel/en-vivo
 comprobar 401 http://localhost:3020/v1/admin/colas
 comprobar 200 http://localhost:8085/actuator/health
 
 docker compose ps --format "table {{.Name}}\t{{.Status}}"
 echo "Kafka UI: http://localhost:8085 (tiene que mostrar 3 brokers)"
 echo "Para publicar la noche de la biblioteca: cd ../biblioteca-simulador && npm ci && node reproducir.mjs --velocidad 60"
+echo "Panel en vivo (solo bibliotecarios): http://localhost:4200/panel"
 echo "Para bajarlo todo sin borrar datos: docker compose down"
 if [ "$fallas" -eq 1 ]; then
   echo "Algun servicio no responde: docker compose logs <servicio> --tail 30"
