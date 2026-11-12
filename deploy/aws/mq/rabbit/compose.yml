@@ -1,0 +1,42 @@
+# RabbitMQ de la biblioteca en dos EC2: rabbit@mq-1 (10.0.21.11) y rabbit@mq-2 (10.0.22.12), en clúster.
+# Es ep3/fragmentos/e2/rabbit-compose.yml con los nombres de la biblioteca. Llega por S3 a
+# /opt/biblioteca/deploy/aws/mq/rabbit/, con mq-1.env y mq-2.env al lado (sin secretos, se versionan).
+#
+# Lo secreto vive en /opt/biblioteca/secretos/ de cada mq, fuera de deploy/, y no se versiona:
+#   rabbitmq.conf   el clúster (classic_config), el usuario y la clave
+#   erlang.cookie   el mismo texto aleatorio en los dos nodos, dueño 999 (rabbitmq en la imagen) y modo 400
+# Los dos se escriben con secretos.sh desde el parámetro /biblioteca/mq-N/env de Parameter Store
+# (RABBITMQ_USER, RABBITMQ_PASSWORD y RABBITMQ_COOKIE, los mismos nombres del .env local). En mq-N:
+#   cd /opt/biblioteca/deploy/aws/mq/rabbit
+#   sudo bash secretos.sh mq-N
+#   sudo docker compose --env-file mq-N.env up -d --wait
+# El clúster se forma solo al arrancar, sin join_cluster. El usuario no puede ser guest: guest solo
+# entra desde localhost. Las políticas de docs/politicas.md se cargan una vez, en mq-1:
+#   sudo docker compose exec rabbit rabbitmqctl import_definitions /etc/rabbitmq/politicas.json
+
+name: biblioteca-rabbit
+
+services:
+  rabbit:
+    image: rabbitmq:4.3-management
+    restart: unless-stopped
+    hostname: ${RABBIT_HOST}
+    # epmd, AMQP, administración y distribución Erlang publicados en la IP del host; el otro nodo llega por ellos.
+    ports: ["4369:4369", "5672:5672", "15672:15672", "25672:25672"]
+    extra_hosts: ["${OTRO_HOST}:${OTRO_IP}"]
+    environment:
+      RABBITMQ_NODENAME: rabbit@${RABBIT_HOST}
+    volumes:
+      - rabbit:/var/lib/rabbitmq
+      - /opt/biblioteca/secretos/erlang.cookie:/var/lib/rabbitmq/.erlang.cookie:ro
+      - /opt/biblioteca/secretos/rabbitmq.conf:/etc/rabbitmq/conf.d/20-biblioteca.conf:ro
+      - ./politicas.json:/etc/rabbitmq/politicas.json:ro
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 20s
+
+volumes:
+  rabbit:

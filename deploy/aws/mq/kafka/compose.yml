@@ -1,0 +1,76 @@
+# Kafka de la biblioteca repartido en tres EC2 (mq-1, mq-2, mq-3): en cada una, un controller y un broker.
+# Es ep3/fragmentos/e2/mq-compose.yml con los nombres de la biblioteca. Se llama compose.yml para que
+# `docker compose` lo encuentre solo y topics.sh funcione igual que en local.
+# Llega a cada mq por S3, a /opt/biblioteca/deploy/aws/mq/kafka/, con un .env por máquina al lado
+# (mq-1.env, mq-2.env, mq-3.env: sin secretos, se versionan). En mq-N, por Session Manager:
+#   cd /opt/biblioteca/deploy/aws/mq/kafka
+#   sudo docker compose --env-file mq-N.env up -d --wait
+# Los topics se crean una vez, desde mq-1, cuando las tres están arriba:
+#   sudo SERVICIO=broker BOOTSTRAP=10.0.21.11:9092 sh topics.sh
+#
+# Frente al compose local cambian tres cosas: network_mode: host (entre máquinas no hay DNS de Docker),
+# un solo listener por nodo con la IP privada fija de la máquina, y los votantes con las tres IP.
+
+name: biblioteca-mq
+
+x-kafka: &kafka
+  image: apache/kafka:4.4.0
+  restart: unless-stopped
+  network_mode: host
+
+services:
+  controller:
+    <<: *kafka
+    environment:
+      CLUSTER_ID: QmlibGlvdGVjYS1LYWZrYQ
+      KAFKA_NODE_ID: ${NODO}
+      KAFKA_PROCESS_ROLES: controller
+      KAFKA_LISTENERS: CONTROLLER://${MQ_IP}:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: ${VOTANTES}
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_HEAP_OPTS: -Xms256m -Xmx256m
+      KAFKA_MIN_INSYNC_REPLICAS: 2
+    volumes: [controller:/var/lib/kafka/data]
+    healthcheck:
+      test: ["CMD", "bash", "-c", "</dev/tcp/${MQ_IP}/9093"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+
+  broker:
+    <<: *kafka
+    environment:
+      CLUSTER_ID: QmlibGlvdGVjYS1LYWZrYQ
+      KAFKA_NODE_ID: ${BROKER_ID}
+      KAFKA_PROCESS_ROLES: broker
+      KAFKA_LISTENERS: INTERNO://${MQ_IP}:9092
+      KAFKA_ADVERTISED_LISTENERS: INTERNO://${MQ_IP}:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,INTERNO:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNO
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: ${VOTANTES}
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_HEAP_OPTS: -Xms512m -Xmx512m
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 3
+      KAFKA_MIN_INSYNC_REPLICAS: 2
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    volumes: [broker:/var/lib/kafka/data]
+    healthcheck:
+      test: ["CMD", "bash", "-c", "</dev/tcp/${MQ_IP}/9092"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 15s
+    depends_on:
+      controller: { condition: service_healthy }
+
+volumes:
+  controller:
+  broker:

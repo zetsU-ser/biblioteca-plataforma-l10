@@ -1,0 +1,3 @@
+# Los .env reales de deploy/aws/secretos/ no se versionan: van en el .zip de la entrega.
+secretos/*
+!secretos/*.example

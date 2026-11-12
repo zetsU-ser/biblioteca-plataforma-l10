@@ -1,0 +1,32 @@
+# Postgres 18 de la biblioteca en la EC2 datos (10.0.21.30). Es ep3/fragmentos/e2/datos-compose.yml con
+# los nombres del .env local (POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD). Llega por S3 a
+# /opt/biblioteca/deploy/aws/datos/. Las variables viven en /opt/biblioteca/secretos/datos.env, que la
+# máquina escribe desde el parámetro /biblioteca/datos/env de Parameter Store. En datos, por Session Manager:
+#   sudo mkdir -p /opt/biblioteca/secretos
+#   aws ssm get-parameter --region us-east-1 --with-decryption --name /biblioteca/datos/env \
+#     --query Parameter.Value --output text | sudo tee /opt/biblioteca/secretos/datos.env > /dev/null
+#   cd /opt/biblioteca/deploy/aws/datos
+#   sudo docker compose --env-file /opt/biblioteca/secretos/datos.env up -d --wait
+# La imagen 18 guarda los datos en /var/lib/postgresql/18/docker: el volumen se monta en
+# /var/lib/postgresql, no en .../data.
+
+name: biblioteca-datos
+
+services:
+  postgres:
+    image: postgres:18
+    restart: unless-stopped
+    ports: ["5432:5432"]
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes: [postgres:/var/lib/postgresql]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  postgres:

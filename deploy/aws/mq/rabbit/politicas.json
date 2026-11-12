@@ -1,0 +1,10 @@
+{
+  "policies": [
+    { "vhost": "/", "name": "retencion-dlq", "pattern": "\\.dlq$", "apply-to": "quorum_queues", "priority": 1,
+      "definition": { "max-length": 1000, "message-ttl": 604800000, "overflow": "reject-publish" } },
+    { "vhost": "/", "name": "retencion-avisos", "pattern": "^notificaciones$", "apply-to": "quorum_queues", "priority": 1,
+      "definition": { "max-length": 10000, "message-ttl": 259200000, "overflow": "reject-publish" } },
+    { "vhost": "/", "name": "retencion-trabajo", "pattern": "^(auditoria|correos)$", "apply-to": "quorum_queues", "priority": 1,
+      "definition": { "max-length": 10000, "overflow": "reject-publish" } }
+  ]
+}

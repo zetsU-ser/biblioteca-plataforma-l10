@@ -1,0 +1,24 @@
+# Kafka UI en la EC2 gestion (10.0.11.20), conectado a los tres brokers de mq-1 a mq-3. Sin secretos.
+# Llega por S3 a /opt/biblioteca/deploy/aws/gestion/. En gestion, por Session Manager:
+#   cd /opt/biblioteca/deploy/aws/gestion
+#   sudo docker compose up -d --wait
+# sg-gestion no abre ningún puerto: Kafka UI se mira desde el equipo con un túnel de Session Manager
+# (deploy/aws/05-tunel.sh), en http://localhost:18085 (el 8085 es el del compose local).
+
+name: biblioteca-gestion
+
+services:
+  kafka-ui:
+    image: ghcr.io/kafbat/kafka-ui:v1.5.0
+    restart: unless-stopped
+    ports: ["8080:8080"]
+    environment:
+      KAFKA_CLUSTERS_0_NAME: biblioteca-aws
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: 10.0.21.11:9092,10.0.22.12:9092,10.0.21.13:9092
+      JAVA_OPTS: -Xms128m -Xmx256m
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/actuator/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 40
+      start_period: 20s
