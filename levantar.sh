@@ -35,7 +35,7 @@ fi
 #     Van antes que los servicios: eventos lee los topics al arrancar y el cluster no crea topics al vuelo.
 docker compose up -d --wait broker-1 broker-2 broker-3
 sh kafka/topics.sh > /dev/null
-echo "topics listos: biblioteca.prestamos, biblioteca.lecturas y sus .dlt"
+echo "topics listos: biblioteca.prestamos, biblioteca.lecturas, sus .dlt y biblioteca.catalogo (compactado)"
 
 # 3 - Todo lo demas: construye las imagenes y espera a que cada servicio quede healthy.
 docker compose up -d --build --wait
